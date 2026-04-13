@@ -272,6 +272,8 @@ export default {
 '<meta property="og:description" content="Post-quantum encrypted, self-hosted file uploads. Gated on X25519MLKEM768 hybrid key exchange.">',
 '<meta property="og:url" content="https://hermitstash.com/">',
 '<meta property="og:image" content="https://assets.hermitstash.com/img/og-image.png">',
+'<meta property="og:image:secure_url" content="https://assets.hermitstash.com/img/og-image.png">',
+'<meta property="og:image:type" content="image/png">',
 '<meta property="og:image:width" content="1200">',
 '<meta property="og:image:height" content="630">',
 '<meta property="og:image:alt" content="HermitStash \u2014 post-quantum encrypted self-hosted file uploads">',
