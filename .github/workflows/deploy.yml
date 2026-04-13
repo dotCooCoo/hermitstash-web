@@ -35,6 +35,24 @@ jobs:
       - name: Syntax check
         run: node --check src/worker.js
 
+      - name: Sync public/ to R2 bucket pqc
+        if: github.event_name != 'pull_request'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          for f in public/img/icons/favicon-16x16.png \
+                   public/img/icons/favicon-32x32.png \
+                   public/img/icons/apple-touch-icon.png \
+                   public/img/icons/icon-192.png \
+                   public/img/icons/icon-512.png \
+                   public/img/og-image.png; do
+            key="${f#public/}"
+            echo "Uploading $f -> pqc/$key"
+            npx wrangler r2 object put "pqc/$key" --file="$f" --content-type=image/png --remote
+          done
+
       - name: Compute asset SHA3-512
         run: |
           set -euo pipefail
