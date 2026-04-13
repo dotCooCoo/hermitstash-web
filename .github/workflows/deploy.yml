@@ -35,9 +35,20 @@ jobs:
       - name: Syntax check
         run: node --check src/worker.js
 
+      - name: Compute asset SHA3-512
+        run: |
+          set -euo pipefail
+          HASH=$(curl -sSf https://assets.hermitstash.com/pqc.svg | openssl dgst -sha3-512 | awk '{print $NF}')
+          if [ -z "$HASH" ]; then
+            echo "::error::Failed to compute SHA3-512 of pqc.svg"
+            exit 1
+          fi
+          echo "ASSET_VERSION=$HASH" >> "$GITHUB_ENV"
+          echo "Computed SHA3-512: $HASH"
+
       - name: Deploy (dry-run on PRs)
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: ${{ github.event_name == 'pull_request' && 'deploy --dry-run' || 'deploy' }}
+          command: ${{ github.event_name == 'pull_request' && 'deploy --dry-run' || 'deploy' }} --var ASSET_VERSION:${{ env.ASSET_VERSION }}

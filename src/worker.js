@@ -97,7 +97,7 @@ function blocked() {
 
 // --- Main handler ---
 export default {
-  async fetch(request) {
+  async fetch(request, env) {
     var url = new URL(request.url);
 
     // Method check
@@ -133,10 +133,13 @@ export default {
     // Generate nonce
     var nonce = generateNonce();
 
+    // Asset version (commit SHA injected at deploy time; 'dev' when running wrangler dev)
+    var version = (env && env.ASSET_VERSION) || 'dev';
+
     // Security headers
     var headers = {
       'Content-Type': 'text/html; charset=utf-8',
-      'Cache-Control': 'public, max-age=3600',
+      'Cache-Control': 'no-cache, must-revalidate',
       'X-Content-Type-Options': 'nosniff',
       'X-Frame-Options': 'DENY',
       'X-XSS-Protection': '0',
@@ -216,7 +219,7 @@ export default {
 '<body>',
 '<div class="container">',
 '  <div class="logo">',
-'    <span class="icon"><img src="https://assets.hermitstash.com/pqc.svg" alt="HermitStash" width="36" height="36"></span>',
+'    <span class="icon"><img src="https://assets.hermitstash.com/pqc.svg?v=' + version + '" alt="HermitStash" width="36" height="36"></span>',
 '    HermitStash',
 '  </div>',
 '',
