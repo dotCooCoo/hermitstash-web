@@ -31,7 +31,7 @@ var BOT_PATTERNS = [
   'semrush', 'ahref', 'mj12bot', 'dotbot', 'petalbot',
   'bytespider', 'gptbot', 'ccbot', 'claudebot', 'anthropic',
   'dataforseo', 'headlesschrome', 'phantomjs', 'selenium',
-  'puppeteer', 'playwright', 'applebot', 'yandexbot', 'baiduspider',
+  'puppeteer', 'playwright', 'yandexbot', 'baiduspider',
   'aiohttp'
 ];
 
@@ -40,6 +40,40 @@ function isBot(ua) {
   var lower = ua.toLowerCase();
   for (var i = 0; i < BOT_PATTERNS.length; i++) {
     if (lower.indexOf(BOT_PATTERNS[i]) !== -1) return true;
+  }
+  return false;
+}
+
+// --- Bot allowlist (legitimate search + social scrapers; bypasses bot/fingerprint checks, still rate-limited and ASN-checked) ---
+var BOT_ALLOWLIST = [
+  'googlebot',            // Google search + rendering
+  'bingbot',              // Bing
+  'duckduckbot',          // DuckDuckGo
+  'slurp',                // Yahoo
+  'applebot',             // Apple
+  'twitterbot',           // X/Twitter
+  'facebookexternalhit',  // Facebook/Meta OG scraper
+  'facebot',              // Facebook alternate
+  'meta-externalagent',   // Meta threads/agent
+  'linkedinbot',          // LinkedIn
+  'slackbot',             // Slack unfurling
+  'discordbot',           // Discord embed
+  'telegrambot',          // Telegram preview
+  'whatsapp',             // WhatsApp preview
+  'skypeuripreview',      // Skype preview
+  'vkshare',              // VK preview
+  'embedly',              // Embedly unfurling (used by many platforms)
+  'pinterestbot',         // Pinterest
+  'redditbot',            // Reddit
+  'ia_archiver',          // Internet Archive
+  'archive.org_bot'
+];
+
+function isAllowedBot(ua) {
+  if (!ua) return false;
+  var lower = ua.toLowerCase();
+  for (var i = 0; i < BOT_ALLOWLIST.length; i++) {
+    if (lower.indexOf(BOT_ALLOWLIST[i]) !== -1) return true;
   }
   return false;
 }
@@ -105,6 +139,20 @@ export default {
       return new Response('Method Not Allowed', { status: 405 });
     }
 
+    // Serve robots.txt (only non-root path allowed; discovery/crawler contract)
+    if (url.pathname === '/robots.txt') {
+      return new Response(
+        'User-agent: *\nAllow: /\n',
+        {
+          headers: {
+            'Content-Type': 'text/plain; charset=utf-8',
+            'Cache-Control': 'public, max-age=86400',
+            'X-Content-Type-Options': 'nosniff'
+          }
+        }
+      );
+    }
+
     // Path normalization — only serve root
     if (url.pathname !== '/' && url.pathname !== '') {
       return Response.redirect(url.origin + '/', 301);
@@ -119,22 +167,62 @@ export default {
       });
     }
 
-    // Bot detection
+    // Bot detection — allowlist short-circuits the bot blocklist + fingerprint check
+    // (search + social scrapers don't send browser headers, but we still want OG/meta tags to reach them)
     var ua = request.headers.get('user-agent') || '';
-    if (isBot(ua)) return blocked();
+    var allowedBot = isAllowedBot(ua);
+    if (!allowedBot && isBot(ua)) return blocked();
 
-    // ASN check
+    // ASN check (applies to everyone, including allowed bots)
     var cf = request.cf || {};
     if (isBlockedASN(cf.asn)) return blocked();
 
-    // Browser fingerprint
-    if (!looksLikeBrowser(request)) return blocked();
+    // Browser fingerprint — skipped for allowed bots
+    if (!allowedBot && !looksLikeBrowser(request)) return blocked();
 
     // Generate nonce
     var nonce = generateNonce();
 
     // Asset version (commit SHA injected at deploy time; 'dev' when running wrangler dev)
     var version = (env && env.ASSET_VERSION) || 'dev';
+
+    // Structured data for search engines (Schema.org JSON-LD)
+    var jsonLd = {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://hermitstash.com/#org",
+          "name": "HermitStash",
+          "url": "https://hermitstash.com/",
+          "logo": "https://assets.hermitstash.com/img/icons/icon-512.png",
+          "sameAs": [
+            "https://github.com/dotCooCoo/hermitstash",
+            "https://github.com/dotCooCoo/hermitstash-sync",
+            "https://github.com/dotCooCoo/hermitstash-web"
+          ]
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://hermitstash.com/#website",
+          "url": "https://hermitstash.com/",
+          "name": "HermitStash",
+          "description": "Post-quantum encrypted, self-hosted file uploads. X25519MLKEM768 hybrid key exchange gates access.",
+          "publisher": { "@id": "https://hermitstash.com/#org" },
+          "inLanguage": "en"
+        },
+        {
+          "@type": "SoftwareApplication",
+          "name": "HermitStash",
+          "applicationCategory": "SecurityApplication",
+          "operatingSystem": "Web",
+          "description": "Post-quantum encrypted, self-hosted file uploads. Hybrid ML-KEM-1024 + X25519 key exchange, XChaCha20-Poly1305 encryption, zero-knowledge vault.",
+          "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+        }
+      ]
+    };
+    // Escape </script> and other HTML-sensitive chars in the JSON payload
+    var jsonLdStr = JSON.stringify(jsonLd).replace(/</g, '\\u003c');
 
     // Security headers
     var headers = {
@@ -160,20 +248,40 @@ export default {
 '<meta name="viewport" content="width=device-width, initial-scale=1.0">',
 '<title>HermitStash \u2014 Quantum-Safe Entry</title>',
 '<meta name="description" content="Post-quantum encrypted, self-hosted file uploads. Gated on X25519MLKEM768 hybrid key exchange \u2014 harvest-now-decrypt-later resistant.">',
+'<meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">',
+'<meta name="author" content="dotCooCoo">',
+'<meta name="application-name" content="HermitStash">',
+'<meta name="apple-mobile-web-app-title" content="HermitStash">',
+'<meta name="apple-mobile-web-app-capable" content="yes">',
+'<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">',
+'<meta name="mobile-web-app-capable" content="yes">',
+'<meta name="format-detection" content="telephone=no">',
 '<meta name="theme-color" content="#22d3a7">',
 '<link rel="canonical" href="https://hermitstash.com/">',
+'<link rel="preconnect" href="https://app.hermitstash.com">',
+'<link rel="preconnect" href="https://assets.hermitstash.com">',
+'<link rel="preconnect" href="https://fonts.googleapis.com">',
+'<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>',
+'<link rel="dns-prefetch" href="https://app.hermitstash.com">',
 '<link rel="icon" type="image/png" sizes="32x32" href="https://assets.hermitstash.com/img/icons/favicon-32x32.png">',
 '<link rel="icon" type="image/png" sizes="16x16" href="https://assets.hermitstash.com/img/icons/favicon-16x16.png">',
 '<link rel="apple-touch-icon" sizes="180x180" href="https://assets.hermitstash.com/img/icons/apple-touch-icon.png">',
 '<meta property="og:type" content="website">',
+'<meta property="og:site_name" content="HermitStash">',
 '<meta property="og:title" content="HermitStash \u2014 Quantum-Safe Entry">',
 '<meta property="og:description" content="Post-quantum encrypted, self-hosted file uploads. Gated on X25519MLKEM768 hybrid key exchange.">',
 '<meta property="og:url" content="https://hermitstash.com/">',
 '<meta property="og:image" content="https://assets.hermitstash.com/img/og-image.png">',
+'<meta property="og:image:width" content="1200">',
+'<meta property="og:image:height" content="630">',
+'<meta property="og:image:alt" content="HermitStash \u2014 post-quantum encrypted self-hosted file uploads">',
+'<meta property="og:locale" content="en_US">',
 '<meta name="twitter:card" content="summary_large_image">',
 '<meta name="twitter:title" content="HermitStash \u2014 Quantum-Safe Entry">',
 '<meta name="twitter:description" content="Post-quantum encrypted, self-hosted file uploads. Gated on X25519MLKEM768 hybrid key exchange.">',
 '<meta name="twitter:image" content="https://assets.hermitstash.com/img/og-image.png">',
+'<meta name="twitter:image:alt" content="HermitStash \u2014 post-quantum encrypted self-hosted file uploads">',
+'<script type="application/ld+json" nonce="' + nonce + '">' + jsonLdStr + '</script>',
 '<style>',
 "  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Outfit:wght@300;400;600;800&display=swap');",
 '  :root {',
