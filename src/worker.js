@@ -146,7 +146,7 @@ export default {
       'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload',
       'Cross-Origin-Opener-Policy': 'same-origin',
       'Cross-Origin-Resource-Policy': 'same-origin',
-      'Cross-Origin-Embedder-Policy': 'require-corp',
+      'Cross-Origin-Embedder-Policy': 'credentialless',
     };
 
     var html = [
