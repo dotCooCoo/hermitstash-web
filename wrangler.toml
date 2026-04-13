@@ -1,4 +1,4 @@
-name = "hermitstash-web"
+name = "pqc-gateway"
 main = "src/worker.js"
 compatibility_date = "2026-04-01"
 
