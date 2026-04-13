@@ -42,9 +42,6 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
-          # One-time cleanup: remove stray empty "public/" folder marker left by an earlier dashboard action
-          echo "Removing stray public/ folder marker from bucket pqc"
-          npx wrangler r2 object delete "pqc/public/" --remote || true
           for f in public/img/icons/favicon-16x16.png \
                    public/img/icons/favicon-32x32.png \
                    public/img/icons/apple-touch-icon.png \
