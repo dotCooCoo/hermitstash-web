@@ -139,13 +139,53 @@ export default {
       return new Response('Method Not Allowed', { status: 405, headers: { 'Content-Type': 'text/plain', 'X-Content-Type-Options': 'nosniff' } });
     }
 
-    // Serve robots.txt (only non-root path allowed; discovery/crawler contract)
+    // Serve robots.txt
     if (url.pathname === '/robots.txt') {
       return new Response(
-        'User-agent: *\nAllow: /\n',
+        'User-agent: *\nAllow: /\n\nSitemap: https://hermitstash.com/sitemap.xml\n',
         {
           headers: {
             'Content-Type': 'text/plain; charset=utf-8',
+            'Cache-Control': 'public, max-age=86400',
+            'X-Content-Type-Options': 'nosniff'
+          }
+        }
+      );
+    }
+
+    // Serve sitemap.xml
+    if (url.pathname === '/sitemap.xml') {
+      return new Response(
+        '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url>\n    <loc>https://hermitstash.com/</loc>\n    <changefreq>monthly</changefreq>\n    <priority>1.0</priority>\n  </url>\n</urlset>\n',
+        {
+          headers: {
+            'Content-Type': 'application/xml; charset=utf-8',
+            'Cache-Control': 'public, max-age=86400',
+            'X-Content-Type-Options': 'nosniff'
+          }
+        }
+      );
+    }
+
+    // Serve web app manifest
+    if (url.pathname === '/manifest.json') {
+      return new Response(
+        JSON.stringify({
+          name: "HermitStash",
+          short_name: "HermitStash",
+          description: "Post-quantum encrypted, self-hosted file uploads.",
+          start_url: "https://app.hermitstash.com/",
+          display: "standalone",
+          background_color: "#0a0a0f",
+          theme_color: "#22d3a7",
+          icons: [
+            { src: "https://assets.hermitstash.com/img/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+            { src: "https://assets.hermitstash.com/img/icons/icon-512.png", sizes: "512x512", type: "image/png" }
+          ]
+        }),
+        {
+          headers: {
+            'Content-Type': 'application/manifest+json; charset=utf-8',
             'Cache-Control': 'public, max-age=86400',
             'X-Content-Type-Options': 'nosniff'
           }
@@ -280,6 +320,7 @@ export default {
 '<link rel="icon" type="image/png" sizes="32x32" href="https://assets.hermitstash.com/img/icons/favicon-32x32.png">',
 '<link rel="icon" type="image/png" sizes="16x16" href="https://assets.hermitstash.com/img/icons/favicon-16x16.png">',
 '<link rel="apple-touch-icon" sizes="180x180" href="https://assets.hermitstash.com/img/icons/apple-touch-icon.png">',
+'<link rel="manifest" href="/manifest.json">',
 '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Outfit:wght@300;400;500;600&display=swap">',
 '<meta property="og:type" content="website">',
 '<meta property="og:site_name" content="HermitStash">',
