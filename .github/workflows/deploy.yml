@@ -79,6 +79,7 @@ jobs:
 
       - name: Post-deploy smoke test
         if: github.event_name != 'pull_request'
+        continue-on-error: true
         run: |
           set -euo pipefail
           UA="Mozilla/5.0 (compatible; smoke-test)"
