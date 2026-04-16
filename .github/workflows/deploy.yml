@@ -42,21 +42,27 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
-          for f in public/img/icons/favicon-16x16.png \
-                   public/img/icons/favicon-32x32.png \
-                   public/img/icons/apple-touch-icon.png \
-                   public/img/icons/icon-192.png \
-                   public/img/icons/icon-512.png \
-                   public/img/og-image.png; do
+          declare -A MIME=(
+            [svg]="image/svg+xml"
+            [png]="image/png"
+            [jpg]="image/jpeg"
+            [jpeg]="image/jpeg"
+            [webp]="image/webp"
+            [ico]="image/x-icon"
+            [json]="application/json"
+          )
+          find public/ -type f | while read -r f; do
             key="${f#public/}"
-            echo "Uploading $f -> pqc/$key"
-            npx wrangler r2 object put "pqc/$key" --file="$f" --content-type=image/png --remote
+            ext="${f##*.}"
+            ct="${MIME[$ext]:-application/octet-stream}"
+            echo "Uploading $f -> pqc/$key ($ct)"
+            npx wrangler r2 object put "pqc/$key" --file="$f" --content-type="$ct" --remote
           done
 
       - name: Compute asset SHA3-512
         run: |
           set -euo pipefail
-          HASH=$(curl -sSf https://assets.hermitstash.com/pqc.svg | openssl dgst -sha3-512 | awk '{print $NF}')
+          HASH=$(openssl dgst -sha3-512 public/pqc.svg | awk '{print $NF}')
           if [ -z "$HASH" ]; then
             echo "::error::Failed to compute SHA3-512 of pqc.svg"
             exit 1
@@ -70,3 +76,57 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: ${{ github.event_name == 'pull_request' && 'deploy --dry-run' || 'deploy' }} --var ASSET_VERSION:${{ env.ASSET_VERSION }}
+
+      - name: Post-deploy smoke test
+        if: github.event_name != 'pull_request'
+        run: |
+          set -euo pipefail
+          UA="Mozilla/5.0 (compatible; smoke-test)"
+          BROWSER_UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+          BASE="https://hermitstash.com"
+
+          echo "--- Browser UA: expect 200 ---"
+          code=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/" \
+            -H "User-Agent: $BROWSER_UA" \
+            -H "Accept: text/html" \
+            -H "Accept-Language: en-US" \
+            -H "Sec-Fetch-Dest: document")
+          [ "$code" = "200" ] || { echo "::error::Browser UA got $code, expected 200"; exit 1; }
+
+          echo "--- Googlebot: expect 200 ---"
+          code=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/" \
+            -H "User-Agent: Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)")
+          [ "$code" = "200" ] || { echo "::error::Googlebot got $code, expected 200"; exit 1; }
+
+          echo "--- curl UA: expect 403 ---"
+          code=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/" -H "User-Agent: curl/8.0")
+          [ "$code" = "403" ] || { echo "::error::curl UA got $code, expected 403"; exit 1; }
+
+          echo "--- robots.txt: expect 200 ---"
+          code=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/robots.txt")
+          [ "$code" = "200" ] || { echo "::error::robots.txt got $code, expected 200"; exit 1; }
+
+          echo "--- security.txt: expect 200 ---"
+          code=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/.well-known/security.txt")
+          [ "$code" = "200" ] || { echo "::error::security.txt got $code, expected 200"; exit 1; }
+
+          echo "--- favicon.ico: expect 302 ---"
+          code=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/favicon.ico")
+          [ "$code" = "302" ] || { echo "::error::favicon.ico got $code, expected 302"; exit 1; }
+
+          echo "--- OG tags present ---"
+          body=$(curl -s "$BASE/" -H "User-Agent: facebookexternalhit/1.1" -H "Accept: */*")
+          echo "$body" | grep -q 'og:image' || { echo "::error::og:image missing from HTML"; exit 1; }
+          echo "$body" | grep -q 'application/ld+json' || { echo "::error::JSON-LD missing from HTML"; exit 1; }
+
+          echo "--- Security headers present ---"
+          headers=$(curl -sI "$BASE/" \
+            -H "User-Agent: $BROWSER_UA" \
+            -H "Accept: text/html" \
+            -H "Accept-Language: en-US" \
+            -H "Sec-Fetch-Dest: document")
+          echo "$headers" | grep -qi "strict-transport-security" || { echo "::error::HSTS header missing"; exit 1; }
+          echo "$headers" | grep -qi "content-security-policy" || { echo "::error::CSP header missing"; exit 1; }
+          echo "$headers" | grep -qi "cross-origin-embedder-policy" || { echo "::error::COEP header missing"; exit 1; }
+
+          echo "All smoke tests passed"

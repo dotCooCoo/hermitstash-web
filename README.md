@@ -22,7 +22,7 @@ The PQC check is end-to-end between the visitor's browser and the app origin. Th
 | Chrome   | 131              |
 | Edge     | 131              |
 | Firefox  | 135              |
-| Safari   | TBD              |
+| Safari   | 18.4             |
 
 ## Request filter chain
 
@@ -48,7 +48,7 @@ Every successful HTML response sets the following headers:
 - **Referrer-Policy** — `strict-origin-when-cross-origin`
 - **Permissions-Policy** — camera, microphone, geolocation, payment, USB, bluetooth, serial all disabled
 - **Cross-Origin-Opener-Policy** — `same-origin`
-- **Cross-Origin-Embedder-Policy** — `require-corp`
+- **Cross-Origin-Embedder-Policy** — `credentialless` (not `require-corp`; cross-origin R2 assets and Google Fonts don't set CORP headers, so `require-corp` would block them)
 - **Cross-Origin-Resource-Policy** — `same-origin`
 
 The script nonce is generated per-request from `crypto.getRandomValues(Uint8Array(16))` and templated only into the single `<script nonce="...">` tag and the CSP header. Inline event handlers (`onclick=`, `onload=`, etc.) are not used and would be blocked if added.

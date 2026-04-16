@@ -136,7 +136,7 @@ export default {
 
     // Method check
     if (request.method !== 'GET' && request.method !== 'HEAD') {
-      return new Response('Method Not Allowed', { status: 405 });
+      return new Response('Method Not Allowed', { status: 405, headers: { 'Content-Type': 'text/plain', 'X-Content-Type-Options': 'nosniff' } });
     }
 
     // Serve robots.txt (only non-root path allowed; discovery/crawler contract)
@@ -151,6 +151,19 @@ export default {
           }
         }
       );
+    }
+
+    // Serve /.well-known/security.txt (RFC 9116)
+    if (url.pathname === '/.well-known/security.txt') {
+      return new Response(
+        'Contact: mailto:security@hermitstash.com\nPreferred-Languages: en\nCanonical: https://hermitstash.com/.well-known/security.txt\nPolicy: https://github.com/dotCooCoo/hermitstash-web/blob/main/SECURITY.md\n',
+        { headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=86400', 'X-Content-Type-Options': 'nosniff' } }
+      );
+    }
+
+    // Redirect /favicon.ico to R2-hosted icon (302 so browsers don't permanently cache the redirect)
+    if (url.pathname === '/favicon.ico') {
+      return Response.redirect('https://assets.hermitstash.com/img/icons/favicon-32x32.png', 302);
     }
 
     // Path normalization — only serve root
@@ -216,7 +229,7 @@ export default {
           "name": "HermitStash",
           "applicationCategory": "SecurityApplication",
           "operatingSystem": "Web",
-          "description": "Post-quantum encrypted, self-hosted file uploads. Hybrid ML-KEM-1024 + X25519 key exchange, XChaCha20-Poly1305 encryption, zero-knowledge vault.",
+          "description": "Post-quantum encrypted, self-hosted file uploads. TLS gated on X25519MLKEM768 (ML-KEM-768) hybrid key exchange; vault encrypted with ML-KEM-1024 + P-384 hybrid KEM, XChaCha20-Poly1305, zero-knowledge.",
           "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
         }
       ]
@@ -228,6 +241,7 @@ export default {
     var headers = {
       'Content-Type': 'text/html; charset=utf-8',
       'Cache-Control': 'no-cache, must-revalidate',
+      'Vary': 'Accept-Encoding',
       'X-Content-Type-Options': 'nosniff',
       'X-Frame-Options': 'DENY',
       'X-XSS-Protection': '0',
@@ -266,6 +280,7 @@ export default {
 '<link rel="icon" type="image/png" sizes="32x32" href="https://assets.hermitstash.com/img/icons/favicon-32x32.png">',
 '<link rel="icon" type="image/png" sizes="16x16" href="https://assets.hermitstash.com/img/icons/favicon-16x16.png">',
 '<link rel="apple-touch-icon" sizes="180x180" href="https://assets.hermitstash.com/img/icons/apple-touch-icon.png">',
+'<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Outfit:wght@300;400;500;600&display=swap">',
 '<meta property="og:type" content="website">',
 '<meta property="og:site_name" content="HermitStash">',
 '<meta property="og:title" content="HermitStash \u2014 Quantum-Safe Entry">',
@@ -285,7 +300,6 @@ export default {
 '<meta name="twitter:image:alt" content="HermitStash \u2014 post-quantum encrypted self-hosted file uploads">',
 '<script type="application/ld+json" nonce="' + nonce + '">' + jsonLdStr + '</script>',
 '<style>',
-"  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Outfit:wght@300;400;600;800&display=swap');",
 '  :root {',
 '    --bg: #0a0a0f; --bg-card: #12121a; --border: #1e1e2e;',
 '    --accent: #22d3a7; --accent-dim: #22d3a740; --accent-glow: #22d3a718;',
@@ -339,17 +353,20 @@ export default {
 '  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }',
 "  .footer { margin-top: 1.5rem; font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: var(--text-dim); letter-spacing: 0.05em; opacity: 0.6; }",
 '  @media (max-width: 480px) { .card { padding: 2rem 1.2rem; } .browsers { grid-template-columns: 1fr; } .logo { font-size: 1.1rem; } }',
+'  @media (prefers-reduced-motion: reduce) { body::before, .spinner .ring, .fail-icon, .log .line { animation: none; } .log .line { opacity: 1; } }',
+'  .retry-btn { display: inline-block; margin-top: 1rem; padding: 0.5rem 1.2rem; background: transparent; border: 1px solid var(--accent-dim); border-radius: 8px; color: var(--accent); font-family: inherit; font-size: 0.85rem; cursor: pointer; transition: border-color 0.2s; }',
+'  .retry-btn:hover { border-color: var(--accent); }',
 '</style>',
 '</head>',
 '<body>',
 '<div class="container">',
-'  <div class="logo">',
-'    <span class="icon"><img src="https://assets.hermitstash.com/pqc.svg?v=' + version + '" alt="HermitStash" width="36" height="36"></span>',
+'  <h1 class="logo">',
+'    <span class="icon"><img src="https://assets.hermitstash.com/pqc.svg?v=' + version + '" alt="" width="36" height="36"></span>',
 '    HermitStash',
-'  </div>',
+'  </h1>',
 '',
 '  <div class="card">',
-'    <div id="state-checking">',
+'    <div id="state-checking" role="status" aria-live="polite">',
 '      <div class="spinner-wrap">',
 '        <div class="spinner">',
 '          <div class="ring"></div>',
@@ -361,9 +378,9 @@ export default {
 '      <div class="log" id="log"></div>',
 '    </div>',
 '',
-'    <div id="state-fail">',
-'      <div class="fail-icon">\u2715</div>',
-'      <div class="fail-title">PQC Handshake Failed</div>',
+'    <div id="state-fail" role="alert">',
+'      <div class="fail-icon" aria-hidden="true">\u2715</div>',
+'      <h2 class="fail-title">PQC Handshake Failed</h2>',
 '      <div class="fail-desc">',
 "        Your browser doesn't support <strong>post-quantum cryptography</strong>.",
 '        HermitStash requires <strong>X25519MLKEM768</strong> hybrid key exchange',
@@ -373,7 +390,7 @@ export default {
 '        <div class="browser-pill">Chrome <span class="ver">\u2265 131</span></div>',
 '        <div class="browser-pill">Firefox <span class="ver">\u2265 135</span></div>',
 '        <div class="browser-pill">Edge <span class="ver">\u2265 131</span></div>',
-'        <div class="browser-pill">Safari <span class="ver">TBD</span></div>',
+'        <div class="browser-pill">Safari <span class="ver">\u2265 18.4</span></div>',
 '      </div>',
 '      <div class="why-section">',
 '        <div class="why-title">Why enforce this?</div>',
@@ -387,11 +404,12 @@ export default {
 '          </a>',
 '        </div>',
 '      </div>',
+'      <button class="retry-btn" id="retry-btn">Try Again</button>',
 '    </div>',
 '',
-'    <div id="state-success">',
-'      <div class="success-icon">\u2713</div>',
-'      <div class="success-title">PQC Verified</div>',
+'    <div id="state-success" role="status" aria-live="polite">',
+'      <div class="success-icon" aria-hidden="true">\u2713</div>',
+'      <h2 class="success-title">PQC Verified</h2>',
 '      <div class="success-sub">Redirecting to quantum-safe connection\u2026</div>',
 '    </div>',
 '  </div>',
@@ -470,9 +488,14 @@ export default {
 '  })',
 '  .catch(function(err) {',
 '    clearTimeout(timeout);',
-"    var reason = err.name === 'AbortError' ? 'connection timed out' : 'handshake rejected';",
+'    var reason;',
+"    if (err.name === 'AbortError') reason = 'connection timed out';",
+"    else if (err.name === 'TypeError') reason = 'server unreachable';",
+"    else reason = 'handshake rejected';",
 '    showFail(reason);',
 '  });',
+'',
+"  document.getElementById('retry-btn').addEventListener('click', function() { location.reload(); });",
 '})();',
 '</script>',
 '</body>',
