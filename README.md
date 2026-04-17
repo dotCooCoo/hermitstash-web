@@ -90,23 +90,46 @@ If adding test coverage ever becomes worthwhile, prefer [Miniflare](https://mini
 
 ## Deployment
 
-Auto-deploy runs via GitHub Actions on every push to `main`. See [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml).
+### Platform: Cloudflare Workers
 
-- **Push to `main`** → `wrangler deploy` (live)
-- **Pull request to `main`** → `wrangler deploy --dry-run` (validates without deploying)
+This project deploys as a **Cloudflare Worker** — not Docker, not a traditional server. The worker runs on Cloudflare's edge network (300+ data centers), with zero cold-start penalty and no infrastructure to manage.
+
+| | |
+|---|---|
+| **Runtime** | Cloudflare Workers (V8 isolates) |
+| **Build step** | None — `wrangler deploy` uploads `src/worker.js` directly |
+| **CI/CD** | GitHub Actions via `cloudflare/wrangler-action@v3` |
+| **Assets** | R2 bucket `pqc` (custom domain: `assets.hermitstash.com`) |
+| **Asset versioning** | SHA3-512 content hash of `pqc.svg`, computed at deploy time |
+| **TLS** | Managed by Cloudflare's edge (supports X25519MLKEM768 PQC hybrid) |
+
+### Auto-deploy via GitHub Actions
+
+Every push to `main` triggers the full pipeline. See [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml).
+
+```
+Checkout → Node 24 → npm ci → node --check → Sync public/ to R2 → SHA3-512 hash → wrangler deploy
+```
+
+- **Push to `main`** → `wrangler deploy` (live) + R2 asset sync + post-deploy smoke test
+- **Pull request to `main`** → `wrangler deploy --dry-run` (validates without deploying, no R2 sync)
 - **Manual dispatch** → available via the Actions tab
 
-The workflow uses [`cloudflare/wrangler-action@v3`](https://github.com/cloudflare/wrangler-action) and needs two repository secrets:
+### Required repository secrets
 
-- `CLOUDFLARE_API_TOKEN` — scoped API token with `Workers Scripts:Edit` on the target account
-- `CLOUDFLARE_ACCOUNT_ID` — the target Cloudflare account ID
+| Secret | Purpose |
+|--------|---------|
+| `CLOUDFLARE_API_TOKEN` | Scoped API token with `Workers Scripts:Edit` + `Workers R2 Storage:Edit` (use the "Edit Cloudflare Workers" template) |
+| `CLOUDFLARE_ACCOUNT_ID` | Target Cloudflare account ID |
 
-To deploy manually from a local checkout:
+### Manual deploy
 
 ```bash
 npm install
 npx wrangler deploy
 ```
+
+Note: manual deploy skips the R2 asset sync and SHA3-512 computation. The asset version falls back to `"dev"`. Prefer pushing to `main`.
 
 ## Configuration
 
