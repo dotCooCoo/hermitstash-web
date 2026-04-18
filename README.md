@@ -71,7 +71,7 @@ package.json                   npm scripts for wrangler dev/deploy
 .github/workflows/deploy.yml   Auto-deploy on push to main
 .github/ISSUE_TEMPLATE/        Bug / feature / question templates
 SECURITY.md                    Vulnerability reporting policy
-LICENSE                        MIT
+LICENSE                        AGPL-3.0-or-later
 ```
 
 Static assets (the favicon/logo SVG) are hosted separately at `assets.hermitstash.com` — the worker only references them via `<img src>` and CSP `img-src`.
@@ -155,4 +155,4 @@ If you find a security issue, please follow the coordinated disclosure process i
 
 ## License
 
-[MIT](LICENSE) — Copyright © 2026 dotCooCoo
+[AGPL-3.0-or-later](LICENSE) — Copyright © 2026 dotCooCoo
