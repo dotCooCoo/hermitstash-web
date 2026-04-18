@@ -196,7 +196,7 @@ export default {
     // Serve /.well-known/security.txt (RFC 9116)
     if (url.pathname === '/.well-known/security.txt') {
       return new Response(
-        'Contact: mailto:security@hermitstash.com\nPreferred-Languages: en\nCanonical: https://hermitstash.com/.well-known/security.txt\nPolicy: https://github.com/dotCooCoo/hermitstash-web/blob/main/SECURITY.md\n',
+        'Contact: mailto:security@hermitstash.com\nExpires: 2027-04-17T00:00:00.000Z\nPreferred-Languages: en\nCanonical: https://hermitstash.com/.well-known/security.txt\nPolicy: https://github.com/dotCooCoo/hermitstash-web/blob/main/SECURITY.md\n',
         { headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=86400', 'X-Content-Type-Options': 'nosniff' } }
       );
     }
@@ -270,6 +270,8 @@ export default {
           "applicationCategory": "SecurityApplication",
           "operatingSystem": "Web",
           "description": "Post-quantum encrypted, self-hosted file uploads. TLS gated on X25519MLKEM768 (ML-KEM-768) hybrid key exchange; vault encrypted with ML-KEM-1024 + P-384 hybrid KEM, XChaCha20-Poly1305, zero-knowledge.",
+          "softwareVersion": "1.6.2",
+          "license": "https://www.gnu.org/licenses/agpl-3.0.html",
           "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
         }
       ]
