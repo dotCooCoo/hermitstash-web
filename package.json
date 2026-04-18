@@ -2,6 +2,7 @@
   "name": "hermitstash-web",
   "version": "1.0.0",
   "description": "PQC gateway for hermitstash.com — Cloudflare Worker",
+  "license": "AGPL-3.0-or-later",
   "private": true,
   "scripts": {
     "dev": "wrangler dev",
