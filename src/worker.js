@@ -270,7 +270,7 @@ export default {
           "applicationCategory": "SecurityApplication",
           "operatingSystem": "Web",
           "description": "Post-quantum encrypted, self-hosted file uploads. TLS gated on X25519MLKEM768 (ML-KEM-768) hybrid key exchange; vault encrypted with ML-KEM-1024 + P-384 hybrid KEM, XChaCha20-Poly1305, zero-knowledge.",
-          "softwareVersion": "1.6.2",
+          "softwareVersion": "1.10.9",
           "license": "https://www.gnu.org/licenses/agpl-3.0.html",
           "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
         }
